@@ -1,4 +1,5 @@
 import datetime
+import locale
 import logging
 import os
 from typing import Callable
@@ -9,11 +10,22 @@ from telegram import ReplyKeyboardRemove, Update, ReplyKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext, Application
 
+load_dotenv()
+
+PORT = int(os.getenv('PORT', 5000))
+ENV = os.getenv('ENV')
+HEROKU_PATH = os.getenv('HEROKU_PATH')
+TOKEN = os.getenv('TOKEN')
+
+
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
+
+locale.setlocale(locale.LC_TIME, "fr_FR")
+
 
 # Variables
 
@@ -27,7 +39,7 @@ fields_and_questions = {
     'description': 'What is the description of the post?',
     'link': 'What is the link of the post?',
     'contact': 'What is the contact of the post?',
-    'confirmation': 'Send \'Yes\' to confirm?',
+    'confirmation': '⬆️ Do you confirm this post? ⬆️',
 }
 
 LIMITS = {
@@ -44,20 +56,32 @@ flow = [TITLE, EMOJI, DATE, DESCRIPTION, LINK, CONTACT, CONFIRMATION]
 CONFIRM = '✅'
 DENY = '❌'
 
+suffix = 'Send /post to start again!'
+CONFIRM_SENT = 'Your post request has been sent to the moderatos! ' + suffix
+CANCEL_SENT = 'Your post request has been cancelled! ' + suffix
+
 # Global variables
 
-post = {}
+# post = {}
+post = {'title': 'PolyNite', 'emoji': '👀', 'date': '12/11-16/12', 'description': 'Teuf avec plein de monde',
+        'link': 'https://agepoly.ch', 'contact': '@eliorpap'}
 
 
 # Helper functions
 
 async def build_post(update: Update, context: CallbackContext) -> str:
     """Builds the post to be sent to the channel"""
-    print(post)
     text = ""
-    for field in flow:
-        if field in post:
-            text += f"{field}: {post[field]}\n"
+    text += f"<b>{post[TITLE]}</b> {post[EMOJI]}\n"
+    # display the date in french
+    text += f"<i>{' - '.join([datetime.datetime.strptime(d, '%d/%m').strftime('%d %B') for d in post[DATE].split('-')])}</i>\n"
+    text += f"\n"
+    text += f"{post[DESCRIPTION]}\n"
+    text += f"\n"
+    text += f"<a href='{post[LINK]}'>Lien d'inscription</a>\n"
+    text += f"\n"
+    text += f"Contact : {post[CONTACT]}\n"
+
     return text
 
 
@@ -89,16 +113,6 @@ def is_date() -> Callable[[str], bool]:
         s[6:]) and datetime.datetime.strptime(s[:5], '%d/%m') < datetime.datetime.strptime(s[6:], '%d/%m'))
 
 
-async def send_confirmation_menu(update: Update, context: CallbackContext) -> None:
-    """."""
-    reply_keyboard = [['Yes', 'No']]
-    # build the post and send it if the keyboard
-    text = await build_post(update, context)
-    await update.message.reply_text(text, reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
-
-    return
-
-
 async def go_next(update: Update, context: CallbackContext, field: str, rule: Callable[[str], bool],
                   **kwargs) -> str:
     """Stores the confirmation and ends the conversation."""
@@ -114,9 +128,11 @@ async def go_next(update: Update, context: CallbackContext, field: str, rule: Ca
     next_field = flow[flow.index(field) + 1]
 
     if next_field == CONFIRMATION:
-        await send_confirmation_menu(update, context)
-        await update.message.reply_text(fields_and_questions[next_field], reply_markup=ReplyKeyboardRemove())
-        return next_field
+        reply_keyboard = [[CONFIRM, DENY]]
+        text = await build_post(update, context)
+        await update.message.reply_text(text,
+                                        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
+                                        parse_mode=ParseMode.HTML)
 
     await update.message.reply_text(fields_and_questions[next_field])
 
@@ -142,7 +158,7 @@ async def help_command(update: Update, context: CallbackContext) -> None:
 async def new_post(update: Update, context: CallbackContext) -> str:
     """Starts the conversation and asks the user about the post."""
     await update.message.reply_text(POST_WARNING_MESSAGE)
-    first_field = flow[0]
+    first_field = flow[-1]
     await update.message.reply_text(fields_and_questions[first_field])
     return first_field
 
@@ -182,21 +198,17 @@ async def confirmation(update: Update, context: CallbackContext) -> int:
     user = update.message.from_user
     logger.info("Confirmation of %s: %s", user.first_name, update.message.text)
 
-    if update.message.text == 'Yes':
-        await update.message.reply_text(
-            'thanks for the information! I will send the post to the channel now.',
-            reply_markup=ReplyKeyboardRemove())
+    if update.message.text == CONFIRM:
+        await update.message.reply_text(CONFIRM_SENT, reply_markup=ReplyKeyboardRemove())
 
         # Send the post to the channel
         await context.bot.send_message(
             chat_id=os.getenv('MODERATION_CHAT_ID'),
-            text=f'<b>{post["title"]}</b>\n\n{post["description"]}\n\n<a href="{post["link"]}">Read more</a>',
+            text=await build_post(update, context),
             parse_mode=ParseMode.HTML)
         return ConversationHandler.END
     else:
-        await update.message.reply_text(
-            'thanks for the information! I will not send the post to the channel.',
-            reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text(CANCEL_SENT, reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
 
 
@@ -204,9 +216,7 @@ async def cancel(update: Update, context: CallbackContext) -> int:
     """Cancels and ends the conversation."""
     user = update.message.from_user
     logger.info("User %s canceled the conversation.", user.first_name)
-    await update.message.reply_text(
-        'Bye! I hope we can talk again some day.',
-        reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(CANCEL_SENT, reply_markup=ReplyKeyboardRemove())
 
     return ConversationHandler.END
 
@@ -214,10 +224,9 @@ async def cancel(update: Update, context: CallbackContext) -> int:
 def main() -> None:
     """Start the bot."""
     print("Going live!")
-    load_dotenv()
 
     # Create application
-    application = Application.builder().token(os.getenv('TOKEN')).build()
+    application = Application.builder().token(TOKEN).build()
 
     # Add conversation handler with the states POST, TITLE, DESCRIPTION, IMAGE, LINK, CONFIRMATION
     conv_handler = ConversationHandler(
@@ -241,8 +250,14 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
 
     # Start the Bot
-    application.run_polling()
-
+    print("Bot starting...")
+    if os.environ.get('ENV') == 'TEST':
+        application.run_polling()
+    elif os.environ.get('ENV') == 'PROD':
+        application.run_webhook(listen="0.0.0.0",
+                                port=int(PORT),
+                                webhook_url=HEROKU_PATH,
+                                secret_token="passphrase")
     return
 
 
