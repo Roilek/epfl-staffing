@@ -59,9 +59,7 @@ CANCEL_SENT = 'Your post request has been cancelled! ' + suffix
 
 # Global variables
 
-# post = {}
-post = {'title': 'PolyNite', 'emoji': '👀', 'date': '12/11-16/12', 'description': 'Teuf avec plein de monde',
-        'link': 'https://agepoly.ch', 'contact': '@eliorpap'}
+post = {}
 
 
 # Helper functions
@@ -154,7 +152,7 @@ async def help_command(update: Update, context: CallbackContext) -> None:
 async def new_post(update: Update, context: CallbackContext) -> str:
     """Starts the conversation and asks the user about the post."""
     await update.message.reply_text(POST_WARNING_MESSAGE)
-    first_field = flow[-1]
+    first_field = flow[0]
     await update.message.reply_text(fields_and_questions[first_field])
     return first_field
 
