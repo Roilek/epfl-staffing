@@ -6,8 +6,8 @@ import os
 from dotenv import load_dotenv
 from telegram.constants import ParseMode
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
-from telegram.ext import CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext, Application, \
-    PicklePersistence
+from telegram.ext import CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext, Application
+
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -50,9 +50,8 @@ async def new_post(update: Update, context: CallbackContext) -> int:
 async def title(update: Update, context: CallbackContext) -> int:
     """Stores the title and asks for a description."""
     user = update.message.from_user
-    text = update.message.text
-    context.user_data["title"] = text
-    logger.info("Title of %s: %s", user.first_name, text)
+    logger.info("Title of %s: %s", user.first_name, update.message.text)
+    post['title'] = update.message.text
 
     await update.message.reply_text('What is the description of the post?')
 
@@ -62,9 +61,8 @@ async def title(update: Update, context: CallbackContext) -> int:
 async def description(update: Update, context: CallbackContext) -> int:
     """Stores the description and asks for an image."""
     user = update.message.from_user
-    text = update.message.text
-    context.user_data["description"] = text
-    logger.info("Description of %s: %s", user.first_name, text)
+    logger.info("Description of %s: %s", user.first_name, update.message.text)
+    post['description'] = update.message.text
 
     await update.message.reply_text('What is the image of the post?')
 
@@ -74,9 +72,8 @@ async def description(update: Update, context: CallbackContext) -> int:
 async def image(update: Update, context: CallbackContext) -> int:
     """Stores the image and asks for a link."""
     user = update.message.from_user
-    text = update.message.text
-    context.user_data["image"] = text
-    logger.info("Image of %s: %s", user.first_name, text)
+    logger.info("Image of %s: %s", user.first_name, update.message.text)
+    post['image'] = update.message.text
 
     await update.message.reply_text('What is the link of the post?')
 
@@ -86,20 +83,17 @@ async def image(update: Update, context: CallbackContext) -> int:
 async def link(update: Update, context: CallbackContext) -> int:
     """Stores the link and asks for confirmation."""
     user = update.message.from_user
-    text = update.message.text
-    context.user_data["link"] = text
-    logger.info("Link of %s: %s", user.first_name, text)
-
-    user_data = context.user_data
+    logger.info("Link of %s: %s", user.first_name, update.message.text)
+    post['link'] = update.message.text
 
     reply_keyboard = [['Yes', 'No']]
 
     await update.message.reply_text(
         'Please confirm the post:\n\n'
-        f'Title: {user_data["title"]}\n'
-        f'Description: {user_data["description"]}\n'
-        f'Image: {user_data["image"]}\n'
-        f'Link: {user_data["link"]}\n\n'
+        f'Title: {post["title"]}\n'
+        f'Description: {post["description"]}\n'
+        f'Image: {post["image"]}\n'
+        f'Link: {post["link"]}\n\n'
         'Is this correct?',
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
 
@@ -109,19 +103,16 @@ async def link(update: Update, context: CallbackContext) -> int:
 async def confirmation(update: Update, context: CallbackContext) -> int:
     """Stores the confirmation and ends the conversation."""
     user = update.message.from_user
-    text = update.message.text
-    context.user_data["confirmation"] = text
-    logger.info("Confirmation of %s: %s", user.first_name, text)
+    logger.info("Confirmation of %s: %s", user.first_name, update.message.text)
+    post['confirmation'] = update.message.text
 
-    user_data = context.user_data
-
-    if user_data['confirmation'] == 'Yes':
+    if post['confirmation'] == 'Yes':
         await update.message.reply_text(
             'thanks for the information! I will send the post to the channel now.',
             reply_markup=ReplyKeyboardRemove())
 
         # Send the post to the channel
-        await context.bot.send_message(chat_id=os.getenv('CHANNEL_ID'), text=f'<b>{user_data["title"]}</b>\n\n{user_data["description"]}\n\n<a href="{user_data["link"]}">Read more</a>', parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id=os.getenv('CHANNEL_ID'), text=f'<b>{post["title"]}</b>\n\n{post["description"]}\n\n<a href="{post["link"]}">Read more</a>', parse_mode=ParseMode.HTML)
         return ConversationHandler.END
     else:
         await update.message.reply_text(
@@ -146,10 +137,8 @@ def main() -> None:
     print("Going live!")
     load_dotenv()
 
-    persistence = PicklePersistence(filepath="conversationbot")
-
     # Create application
-    application = Application.builder().token(os.getenv('TOKEN')).persistence(persistence).build()
+    application = Application.builder().token(os.getenv('TOKEN')).build()
 
     # Add conversation handler with the states POST, TITLE, DESCRIPTION, IMAGE, LINK, CONFIRMATION
     conv_handler = ConversationHandler(
