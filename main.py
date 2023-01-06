@@ -28,6 +28,7 @@ post = {}
 
 async def start(update: Update, context: CallbackContext) -> None:
     """Send a message when the command /start is issued."""
+    print(update)
     await update.message.reply_text('Hi!')
     return
 
@@ -137,7 +138,7 @@ async def confirmation(update: Update, context: CallbackContext) -> int:
 
         # Send the post to the channel
         await context.bot.send_message(
-            chat_id=os.getenv('CHANNEL_ID'),
+            chat_id=os.getenv('MODERATION_CHAT_ID'),
             text=f'<b>{post["title"]}</b>\n\n{post["description"]}\n\n<a href="{post["link"]}">Read more</a>',
             parse_mode=ParseMode.HTML)
         return ConversationHandler.END
