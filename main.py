@@ -247,7 +247,7 @@ def main() -> None:
 
     # Start the Bot
     print("Bot starting...")
-    if os.environ.get('ENV') == 'TEST':
+    if os.environ.get('ENV') == 'DEV':
         application.run_polling()
     elif os.environ.get('ENV') == 'PROD':
         application.run_webhook(listen="0.0.0.0",
