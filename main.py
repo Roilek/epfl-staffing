@@ -1,10 +1,10 @@
 import datetime
-import locale
 import logging
 import os
 from typing import Callable
 
 import emoji
+from babel.dates import format_date
 from dotenv import load_dotenv
 from telegram import ReplyKeyboardRemove, Update, ReplyKeyboardMarkup
 from telegram.constants import ParseMode
@@ -16,16 +16,13 @@ PORT = int(os.getenv('PORT', 5000))
 ENV = os.getenv('ENV')
 HEROKU_PATH = os.getenv('HEROKU_PATH')
 TOKEN = os.getenv('TOKEN')
-
+LOCALE = os.getenv('LOCALE')
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
-
-locale.setlocale(locale.LC_TIME, "fr_FR")
-
 
 # Variables
 
@@ -73,8 +70,7 @@ async def build_post(update: Update, context: CallbackContext) -> str:
     """Builds the post to be sent to the channel"""
     text = ""
     text += f"<b>{post[TITLE]}</b> {post[EMOJI]}\n"
-    # display the date in french
-    text += f"<i>{' - '.join([datetime.datetime.strptime(d, '%d/%m').strftime('%d %B') for d in post[DATE].split('-')])}</i>\n"
+    text += f"<i>{' - '.join([format_date(datetime.datetime.strptime(d, '%d/%m'), format='dd MMMM', locale=LOCALE) for d in post[DATE].split('-')])}</i>\n"
     text += f"\n"
     text += f"{post[DESCRIPTION]}\n"
     text += f"\n"
