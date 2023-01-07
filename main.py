@@ -57,24 +57,21 @@ suffix = 'Send /post to start again!'
 CONFIRM_SENT = 'Your post request has been sent to the moderatos! ' + suffix
 CANCEL_SENT = 'Your post request has been cancelled! ' + suffix
 
-# Global variables
-
-post = {}
-
 
 # Helper functions
 
 async def build_post(update: Update, context: CallbackContext) -> str:
     """Builds the post to be sent to the channel"""
+    user_data = context.user_data
     text = ""
-    text += f"<b>{post[TITLE]}</b> {post[EMOJI]}\n"
-    text += f"<i>{' - '.join([format_date(datetime.datetime.strptime(d, '%d/%m'), format='dd MMMM', locale=LOCALE) for d in post[DATE].split('-')])}</i>\n"
+    text += f"<b>{user_data[TITLE]}</b> {user_data[EMOJI]}\n"
+    text += f"<i>{' - '.join([format_date(datetime.datetime.strptime(d, '%d/%m'), format='dd MMMM', locale=LOCALE) for d in user_data[DATE].split('-')])}</i>\n"
     text += f"\n"
-    text += f"{post[DESCRIPTION]}\n"
+    text += f"{user_data[DESCRIPTION]}\n"
     text += f"\n"
-    text += f"<a href='{post[LINK]}'>Lien d'inscription</a>\n"
+    text += f"<a href='{user_data[LINK]}'>Lien d'inscription</a>\n"
     text += f"\n"
-    text += f"Contact : {post[CONTACT]}\n"
+    text += f"Contact : {user_data[CONTACT]}\n"
 
     return text
 
@@ -116,7 +113,7 @@ async def go_next(update: Update, context: CallbackContext, field: str, rule: Ca
     while not rule(text):
         await update.message.reply_text(fields_and_questions[field])
         return field
-    post[field] = update.message.text
+    context.user_data[field] = update.message.text
 
     # reply with question of next field
     next_field = flow[flow.index(field) + 1]
