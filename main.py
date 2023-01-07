@@ -24,31 +24,39 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-# Variables
+# Constants
 
-POST_WARNING_MESSAGE = "Please read carefully the rules of posting with /rules before sending your post as any post " \
-                       "that does not comply with these rules will not be posted!"
+ACCEPTED_CHARACTERS = ['.', ',', ':', ';', '!', '?', '(', ')', '[', ']', '{', '}', '/', '\\', '-', '_', '+', '=', '*', '@', '#', '$', '%', '^', '&', '|', '<', '>', '~', '`', '"', "'", '·', '’']
+
+POST, TITLE, EMOJI, DATE, DESCRIPTION, LINK, CONTACT, CONFIRMATION = ['post', 'title', 'emoji', 'date', 'description',
+                                                                      'link', 'contact', 'confirmation']
 
 fields_and_questions = {
-    'title': 'What is the title of the post?',
-    'emoji': 'What is the emoji of the post?',
-    'date': 'What is the date of the post?',
-    'description': 'What is the description of the post?',
-    'link': 'What is the link of the post?',
-    'contact': 'What is the contact of the post?',
-    'confirmation': '⬆️ Do you confirm this post? ⬆️',
+    POST: 'Please read carefully the rules of posting with /rules before sending your post as any post that does not '
+          'comply with these rules will not be posted!',
+    TITLE: 'What is the title of the post?',
+    EMOJI: 'What is the emoji of the post?',
+    DATE: 'What is the date of the post?',
+    DESCRIPTION: 'What is the description of the post?',
+    LINK: 'What is the link of the post?',
+    CONTACT: 'What is the contact of the post?',
+    CONFIRMATION: '⬆️ Do you confirm this post? ⬆️',
 }
 
 LIMITS = {
-    'title': 10,
-    'emoji': 1,
-    'description': 100,
-    'link': 100,
-    'contact': 50,
+    TITLE: 10,
+    EMOJI: 1,
+    DESCRIPTION: 100,
+    LINK: 100,
+    CONTACT: 50,
 }
 
-TITLE, EMOJI, DATE, DESCRIPTION, LINK, CONTACT, CONFIRMATION = fields_and_questions.keys()
-flow = [TITLE, EMOJI, DATE, DESCRIPTION, LINK, CONTACT, CONFIRMATION]
+SPECIFIC_FORMATTING_INSTRUCTIONS = {
+    TITLE: 'No emoji nor special characters',
+    DATE: 'DD/MM or DD/MM-DD/MM',
+}
+
+flow = [POST, TITLE, EMOJI, DATE, DESCRIPTION, LINK, CONTACT, CONFIRMATION]
 
 CONFIRM = '✅'
 DENY = '❌'
@@ -76,6 +84,17 @@ async def build_post(update: Update, context: CallbackContext) -> str:
     return text
 
 
+def and_(predicates: list[Callable[[str], bool]]) -> Callable[[str], bool]:
+    """Returns a function that checks if a string satisfies all the given predicates."""
+    return lambda s: all([p(s) for p in predicates])
+
+
+# returns a function that checks if a string is only composed of non special charaters
+def is_only_non_special_characters() -> Callable[[str], bool]:
+    """Returns a function that checks if a string is only composed of non special charaters."""
+    return lambda s: all([c.isalnum() or c.isspace() or c in ACCEPTED_CHARACTERS for c in s])
+
+
 def is_shorter_than(length: int) -> Callable[[str], bool]:
     """Returns a function that checks if a string is shorter than a given length."""
     return lambda s: len(s) < length
@@ -86,7 +105,7 @@ def is_emoji() -> Callable[[str], bool]:
     return lambda s: emoji.emoji_count(s) == 1 and len(s) == 1
 
 
-def check_one_date(text: str) -> bool:
+def _check_one_date(text: str) -> bool:
     """Checks one date"""
     if len(text) == 5 and text[2] == '/':
         try:
@@ -99,19 +118,28 @@ def check_one_date(text: str) -> bool:
 
 def is_date() -> Callable[[str], bool]:
     """Returns a function that checks if a string is a date."""
-    return lambda s: check_one_date(s) if len(s) == 5 else (
-            len(s) == 11 and s[5] == '-' and check_one_date(s[:5]) and check_one_date(
+    return lambda s: _check_one_date(s) if len(s) == 5 else (
+            len(s) == 11 and s[5] == '-' and _check_one_date(s[:5]) and _check_one_date(
         s[6:]) and datetime.datetime.strptime(s[:5], '%d/%m') < datetime.datetime.strptime(s[6:], '%d/%m'))
 
 
-async def go_next(update: Update, context: CallbackContext, field: str, rule: Callable[[str], bool],
-                  **kwargs) -> str:
+def _get_question(field: str) -> str:
+    """Returns the question to ask for a given field."""
+    question = fields_and_questions[field]
+    if field in LIMITS.keys():
+        question += f' (max {LIMITS[field]} characters)'
+    if field in SPECIFIC_FORMATTING_INSTRUCTIONS.keys():
+        question += f' ({SPECIFIC_FORMATTING_INSTRUCTIONS[field]})'
+    return question
+
+
+async def go_next(update: Update, context: CallbackContext, field: str, rule: Callable[[str], bool]) -> str:
     """Stores the confirmation and ends the conversation."""
     user = update.message.from_user
     text = update.message.text
     logger.info("%s of %s: %s", field, user.first_name, text)
     while not rule(text):
-        await update.message.reply_text(fields_and_questions[field])
+        await update.message.reply_text(_get_question(field))
         return field
     context.user_data[field] = update.message.text
 
@@ -125,7 +153,7 @@ async def go_next(update: Update, context: CallbackContext, field: str, rule: Ca
                                         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
                                         parse_mode=ParseMode.HTML)
 
-    await update.message.reply_text(fields_and_questions[next_field])
+    await update.message.reply_text(_get_question(next_field))
 
     return next_field
 
@@ -148,15 +176,14 @@ async def help_command(update: Update, context: CallbackContext) -> None:
 
 async def new_post(update: Update, context: CallbackContext) -> str:
     """Starts the conversation and asks the user about the post."""
-    await update.message.reply_text(POST_WARNING_MESSAGE)
-    first_field = flow[0]
-    await update.message.reply_text(fields_and_questions[first_field])
-    return first_field
+    await update.message.reply_text(fields_and_questions[POST])
+    return await go_next(update, context, POST, lambda s: True)
 
 
 async def title(update: Update, context: CallbackContext) -> str:
     """Stores the title."""
-    return await go_next(update, context, TITLE, is_shorter_than(LIMITS[TITLE]))
+    rule = and_([is_only_non_special_characters(), is_shorter_than(LIMITS[TITLE])])
+    return await go_next(update, context, TITLE, rule)
 
 
 async def myemoji(update: Update, context: CallbackContext) -> str:
