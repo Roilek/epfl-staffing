@@ -13,3 +13,4 @@ MODERATION_CHAT_ID=   # The chat where the posts will be sent for moderation
 ENV=   # The environment (DEV or PROD)
 HEROKU_PATH=   # The path to the heroku app (only for DEV)
 LOCALE=   # The locale (fr_FR for example)
+CHANNEL_LINK=   # The link to the channel

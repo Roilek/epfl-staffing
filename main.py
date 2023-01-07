@@ -17,6 +17,7 @@ ENV = os.getenv('ENV')
 HEROKU_PATH = os.getenv('HEROKU_PATH')
 TOKEN = os.getenv('TOKEN')
 LOCALE = os.getenv('LOCALE')
+CHANNEL_LINK = os.getenv('CHANNEL_LINK')
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -163,8 +164,8 @@ async def go_next(update: Update, context: CallbackContext, field: str, rule: Ca
 async def start(update: Update, context: CallbackContext) -> None:
     """Send a message when the command /start is issued."""
     text = "Hello!\n"
-    text += "You can use /post to request a new post on the EPFL Staffing channel (https://t.me/+fkbWQxKHD58xNGI8)"
-    await update.message.reply_text(text)
+    text += f'You can use /post to request a new post on the <a href="{CHANNEL_LINK}">EPFL Staffing channel</a>.\n'
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
     return
 
 
